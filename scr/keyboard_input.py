@@ -1,4 +1,5 @@
-import numpy as np
+import sympy as sp
+import const as c
 from pynput import keyboard
 import time
 
@@ -7,10 +8,10 @@ class URMController:
     
     def __init__(self):
         # Direction vector [x, y, z]
-        self.direction = np.array([0.0, 0.0, 0.0])
+        self.direction = sp.Matrix([0.0, 0.0, 0.0])
         
         # Gripper angle (0-90 degrees)
-        self.gripper_angle = 0.0
+        self.gripper_angle = c.GRIPPER_INITIAL_ANGLE
         
         # Running state
         self.running = True
@@ -81,15 +82,15 @@ class URMController:
         """Update gripper angle based on arrow key states"""
         if self.keys_pressed['right']:
             # Right arrow: open gripper (increase angle)
-            self.gripper_angle = min(self.gripper_angle + 1, 90)
+            self.gripper_angle = min(self.gripper_angle + 1, c.GRIPPER_MAX_ANGLE)
         if self.keys_pressed['left']:
             # Left arrow: close gripper (decrease angle)
-            self.gripper_angle = max(self.gripper_angle - 1, 0)
+            self.gripper_angle = max(self.gripper_angle - 1, c.GRIPPER_MIN_ANGLE)
     
     def update_direction(self):
         """Update direction vector based on current key states"""
         # Reset direction vector
-        self.direction = np.array([0.0, 0.0, 0.0])
+        self.direction = sp.Matrix([0.0, 0.0, 0.0])
         
         # X-axis control (A/D keys)
         if self.keys_pressed['d']:
@@ -128,14 +129,14 @@ class URMController:
         """Get current state: (direction_vector, gripper_angle)"""
         self.update_direction()
         return {
-            'direction': self.direction.copy(),
+            'direction': self.direction,
             'gripper_angle': self.gripper_angle
         }
     
     def returnDirection(self):
         """Return the current direction vector"""
         self.update_direction()
-        return self.direction.copy()
+        return self.direction
     
     def returnGripperValue(self):
         """Return the current gripper angle value (0-90)"""
