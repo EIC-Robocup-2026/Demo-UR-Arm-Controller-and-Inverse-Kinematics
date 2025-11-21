@@ -23,6 +23,9 @@ class URArmParameter:
 
         #initialize thetas, these will be used both controlling the arm and calculating DH parameters
         self.thetas = self.joint_initializing_angle.copy()  # in rad
+        
+        # Initialize reset flag
+        self.is_resetting = False
 
         #initialize DH parameters
         print("Computing DH parameters...")
@@ -55,7 +58,29 @@ class URArmParameter:
     
     #reset thetas to initial position
     def reset_thetas(self):
-        self.thetas = self.joint_initializing_angle.copy()
+        """Start gradual reset of thetas to initial position"""
+        self.is_resetting = True
+    
+    def update_reset(self):
+        """Update reset progress - call this every loop iteration"""
+        if not hasattr(self, 'is_resetting'):
+            self.is_resetting = False
+        
+        if self.is_resetting:
+            # Calculate distance to initial position
+            distance = (self.thetas - self.joint_initializing_angle).norm()
+            
+            if distance > c.RESET_STEP_SIZE:
+                # Calculate direction towards initial position
+                direction = self.joint_initializing_angle - self.thetas
+                normalized_direction = direction / direction.norm()
+                
+                # Take a step towards initial position
+                self.thetas += normalized_direction * c.RESET_STEP_SIZE
+            else:
+                # Reached initial position
+                self.thetas = self.joint_initializing_angle.copy()
+                self.is_resetting = False
 
     #return current thetas
     def get_current_thetas(self):
@@ -127,6 +152,21 @@ class URArmParameter:
         pos = self.fk_func(float(self.thetas[0]), float(self.thetas[1]), float(self.thetas[2]), 
                            float(self.thetas[3]), float(self.thetas[4]), float(self.thetas[5]))
         return sp.Matrix(pos.flatten())
+
+    def rotate_gripper(self, roll_direction):
+        """Rotate the gripper by a small angle in the given direction
+        
+        Args:
+            roll_direction: +1 to increase angle, -1 to decrease angle
+        """
+        # Define small angle step (in radians)
+        angle_step = sp.rad(5)  # 5 degrees in radians
+        
+        # Update theta6 (gripper rotation)
+        new_theta6 = self.thetas[5] + roll_direction * sp.rad(c.GRIPPER_ROTATION_STEP)
+        
+        # Update thetas
+        self.thetas[5] = new_theta6
     
 
     #If movement by unit direction is possible, update thetas and return True, else return False

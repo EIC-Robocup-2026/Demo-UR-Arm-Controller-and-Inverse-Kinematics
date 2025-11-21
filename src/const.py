@@ -18,9 +18,13 @@ initial_angle = [0,sp.pi/4,sp.pi/4,0,0,0]
 GRIPPER_MAX_ANGLE = 90  # degrees
 GRIPPER_MIN_ANGLE = 0   # degrees
 GRIPPER_INITIAL_ANGLE = 45  # degrees
-
+GRIPPER_INITIAL_ROLL_ANGLE = 0  # degrees
 
 #control parameters
 CONTROL_STEP_SIZE = 1  # step size for each control input in mm 
-MAX_ITERATIONS = 1000  # maximum iterations for inverse kinematics solver
+GRIPPER_ROTATION_STEP = 1  # degrees per gripper control input
+MAX_ITERATIONS = 5  # maximum iterations for inverse kinematics solver
 CONVERGENCE_THRESHOLD = 0.01  # convergence threshold for IK solver in mm
+RESET_STEP_SIZE = 0.05  # step size for resetting arm (radians)
+
+THETA_OFFSET_ANGLE = [-135, -135, -135, -135, -135, -135, 0]

@@ -13,6 +13,8 @@ class URMController:
         # Gripper angle (0-90 degrees)
         self.gripper_angle = c.GRIPPER_INITIAL_ANGLE
         
+        self.gripper_roll_direction = 0  # -1 for clockwise, +1 for anti clockwise, 0 for no rotation
+
         # Running state
         self.running = True
         
@@ -25,7 +27,9 @@ class URMController:
             'shift': False,
             'space': False,
             'left': False,
-            'right': False
+            'right': False,
+            'up': False,
+            'down': False
         }
         
         # Setup listeners
@@ -37,7 +41,7 @@ class URMController:
     def on_key_press(self, key):
         """Handle keyboard press events"""
         try:
-            # Character keys (w, a, s, d) - handle both lowercase and uppercase
+            # Character keys (w, a, s, d, r) - handle both lowercase and uppercase
             if hasattr(key, 'char'):
                 char = key.char.lower() if key.char else None
                 if char in self.keys_pressed:
@@ -52,6 +56,10 @@ class URMController:
                 self.keys_pressed['left'] = True
             elif key == keyboard.Key.right:
                 self.keys_pressed['right'] = True
+            elif key == keyboard.Key.up:
+                self.keys_pressed['up'] = True
+            elif key == keyboard.Key.down:
+                self.keys_pressed['down'] = True
             elif key == keyboard.Key.esc:
                 self.running = False
                 return False
@@ -74,18 +82,31 @@ class URMController:
                 self.keys_pressed['left'] = False
             elif key == keyboard.Key.right:
                 self.keys_pressed['right'] = False
+            elif key == keyboard.Key.up:
+                self.keys_pressed['up'] = False
+            elif key == keyboard.Key.down:
+                self.keys_pressed['down'] = False
         
         except AttributeError:
             pass
     
     def update_gripper(self):
-        """Update gripper angle based on arrow key states"""
-        if self.keys_pressed['right']:
-            # Right arrow: open gripper (increase angle)
+        """Update gripper angle and roll direction based on arrow key states"""
+        # Gripper angle control (up/down arrows)
+        if self.keys_pressed['up']:
+            # Up arrow: open gripper (increase angle)
             self.gripper_angle = min(self.gripper_angle + 1, c.GRIPPER_MAX_ANGLE)
-        if self.keys_pressed['left']:
-            # Left arrow: close gripper (decrease angle)
+        if self.keys_pressed['down']:
+            # Down arrow: close gripper (decrease angle)
             self.gripper_angle = max(self.gripper_angle - 1, c.GRIPPER_MIN_ANGLE)
+        
+        # Gripper roll direction control (left/right arrows)
+        if self.keys_pressed['right']:
+            self.gripper_roll_direction = 1
+        elif self.keys_pressed['left']:
+            self.gripper_roll_direction = -1
+        else:
+            self.gripper_roll_direction = 0
     
     def update_direction(self):
         """Update direction vector based on current key states"""
@@ -120,17 +141,20 @@ class URMController:
         print("Controls:")
         print("  W/A/S/D - Move in X/Y plane")
         print("  Space/Shift - Move up/down (Z axis)")
-        print("  <- (Left Arrow) - Close gripper")
-        print("  -> (Right Arrow) - Open gripper")
+        print("  ↑ (Up Arrow) - Open gripper")
+        print("  ↓ (Down Arrow) - Close gripper")
+        print("  <- (Left Arrow) - Gripper roll direction -1")
+        print("  -> (Right Arrow) - Gripper roll direction +1")
         print("  ESC - Exit")
         print()
     
     def get_state(self):
-        """Get current state: (direction_vector, gripper_angle)"""
+        """Get current state: (direction_vector, gripper_angle, gripper_roll_direction)"""
         self.update_direction()
         return {
             'direction': self.direction,
-            'gripper_angle': self.gripper_angle
+            'gripper_angle': self.gripper_angle,
+            'gripper_roll_direction': self.gripper_roll_direction
         }
     
     def returnDirection(self):
@@ -141,6 +165,10 @@ class URMController:
     def returnGripperValue(self):
         """Return the current gripper angle value (0-90)"""
         return self.gripper_angle
+    
+    def returnGripperRollDirection(self):
+        """Return the current gripper roll direction (1, 0, or -1)"""
+        return self.gripper_roll_direction
     
     def run(self, update_rate=20):
         """Run the controller update loop"""
