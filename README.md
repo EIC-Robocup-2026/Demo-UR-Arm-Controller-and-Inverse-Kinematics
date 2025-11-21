@@ -25,7 +25,7 @@ pip install numpy pynput pyserial
 
 ```
 Demo-Arm-Controller-and-Inverse-Kinematic/
-├── scr/
+├── src/
 │   ├── main.py              # Main application entry point
 │   ├── keyboard_input.py    # URMController class for keyboard handling
 │   └── parameter.py         # Robot arm physical parameters and constants
@@ -91,7 +91,7 @@ Demonstrates basic usage of the URMController with a simple control loop.
 
 Run the main application:
 ```bash
-python scr/main.py
+python src/main.py
 ```
 
 ### Integration Example
