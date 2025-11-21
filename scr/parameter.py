@@ -191,29 +191,20 @@ class URArmParameter:
 
 
 
-parameter = URArmParameter()
-print("UR Arm parameters initialized.")
+# parameter = URArmParameter()
+# print("UR Arm parameters initialized.")
 
-print("Initial position:")
-init_pos = parameter.get_end_effector_position()
-print(init_pos.evalf(n=5))
+# print("Initial position:")
+# init_pos = parameter.get_end_effector_position()
+# print(init_pos.evalf(n=5))
 
-print("\nInitial thetas (rad):")
-init_thetas = parameter.get_current_thetas()
-for i in range(6):
-    print(f"  theta{i+1}: {float(init_thetas[i]):.6f}")
+# for i in range(100):
+#     parameter.move_by(sp.Matrix([1,1,0]))
 
-for i in range(100):
-    parameter.move_by(sp.Matrix([1,1,0]))
 
-print("\nFinal position:")
-final_pos = parameter.get_end_effector_position()
-print(final_pos.evalf(n=5))
+# print("\nFinal position:")
+# final_pos = parameter.get_end_effector_position()
+# print(final_pos.evalf(n=5))
 
-print("\nFinal thetas (rad):")
-final_thetas = parameter.get_current_thetas()
-for i in range(6):
-    print(f"  theta{i+1}: {float(final_thetas[i]):.6f}")
-
-print("\nDiff ", init_pos.evalf(n=5) - final_pos.evalf(n=5))
-print("Size ", (init_pos.evalf(n=5) - final_pos.evalf(n=5)).norm())
+# print("\nDiff ", init_pos.evalf(n=5) - final_pos.evalf(n=5))
+# print("\nSize ", (init_pos.evalf(n=5) - final_pos.evalf(n=5)).norm())
