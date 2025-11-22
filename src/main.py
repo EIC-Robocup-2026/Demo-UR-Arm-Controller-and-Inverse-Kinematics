@@ -10,7 +10,7 @@ import math
 # Initialize serial communication with ESP32 on COM7
 ser = None
 try:
-    ser = serial.Serial(port='COM7', baudrate=115200, timeout=1)
+    ser = serial.Serial(port='/dev/ttyACM1', baudrate=115200, timeout=1)
     print(f"Serial port opened: {ser.name}")
 except Exception as e:
     print(f"Serial port not available (continuing without): {e}")
@@ -43,21 +43,28 @@ while True:
         values.append(f"{theta_deg:.4f}")
     gripper_val = gripper - c.THETA_OFFSET_ANGLE[6]
     values.append(f"{gripper_val:.4f}")
-    print(",".join(values))
+
+    # Print end-effector position and joint angles in an easy-to-read format
+    print(
+        f"Pos: x={float(end_pos[0]):.2f}, y={float(end_pos[1]):.2f}, z={float(end_pos[2]):.2f} | "
+        + "Joints: " + ", ".join([f"θ{i+1}:{values[i]}°" for i in range(6)])
+        + f" | Gripper: {values[6]}°"
+    )
     
     if not controller.running:
         break
+
+    ser.write(str(",".join(values)+'\n').encode('UTF-8'))
     
     # Print on one line: thetas, end position, gripper, and gripper roll direction
     # theta_str = " | ".join([f"θ{i+1}: {float(thetas[i]):.4f}" for i in range(6)])
     # pos_str = f"Pos: [{float(end_pos[0]):.2f}, {float(end_pos[1]):.2f}, {float(end_pos[2]):.2f}]"
     # gripper_str = f"Gripper: {gripper:.1f}°"
-   
     # print(f"{theta_str} | {pos_str} | {gripper_str}")
     # print(f"Direction: {direction} | Roll: {gripper_roll_direction}")
 
     # Convert theta 1-6 and gripper angle to int, subtract offset, and print
 
-    time.sleep(0.05)
+    time.sleep(0.1)
 
 controller.stop()
