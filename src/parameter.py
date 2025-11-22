@@ -229,9 +229,90 @@ class URArmParameter:
             self.thetas = self.theta_copy
             return False  # movement failed due to max iterations
 
+    def visualize_kinematic(self, thetas=None, title="UR Arm Kinematic Visualization"):
+        """Visualize the kinematic chain of the robot arm using matplotlib
+        
+        Args:
+            thetas: sp.Matrix of 6 theta values. If None, uses current self.thetas
+            title: Title for the visualization plot
+        """
+        try:
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+        except ImportError:
+            print("Error: matplotlib is required for visualization. Install it using: pip install matplotlib")
+            return
+        
+        if thetas is None:
+            thetas = self.thetas
+        
+        # Calculate all joint positions by computing transformation matrices
+        dh_params = self.dh_parameters
+        T_total = sp.eye(4)
+        joint_positions = [np.array([0, 0, 0])]  # Start at origin
+        
+        # Substitute theta values
+        theta_values = {self.theta1: thetas[0],
+                        self.theta2: thetas[1],
+                        self.theta3: thetas[2],
+                        self.theta4: thetas[3],
+                        self.theta5: thetas[4],
+                        self.theta6: thetas[5]}
+        
+        # Calculate position of each joint
+        for i in range(dh_params.rows):
+            d, theta, a, alpha = dh_params.row(i)
+            T = self.dh_to_transformation(d, theta, a, alpha)
+            T_substituted = T.subs(theta_values)
+            T_total = T_total * T_substituted
+            
+            # Extract position from transformation matrix
+            pos = T_total[:3, 3]
+            pos_numeric = np.array([float(pos[0]), float(pos[1]), float(pos[2])])
+            joint_positions.append(pos_numeric)
+        
+        # Convert to numpy array for easier plotting
+        joint_positions = np.array(joint_positions)
+        
+        # Create 3D plot
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        
+        # Plot the arm links
+        ax.plot(joint_positions[:, 0], joint_positions[:, 1], joint_positions[:, 2], 
+                'b-o', linewidth=2, markersize=8, label='Arm links')
+        
+        # Plot joint positions
+        ax.scatter(joint_positions[:, 0], joint_positions[:, 1], joint_positions[:, 2], 
+                   c='red', s=100, label='Joints')
+        
+        # Plot end effector
+        ax.scatter(joint_positions[-1, 0], joint_positions[-1, 1], joint_positions[-1, 2], 
+                   c='green', s=150, marker='*', label='End Effector')
+        
+        # Labels and formatting
+        ax.set_xlabel('X (mm)')
+        ax.set_ylabel('Y (mm)')
+        ax.set_zlabel('Z (mm)')
+        ax.set_title(title)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Set equal aspect ratio for better visualization
+        max_range = np.array([joint_positions[:, 0].max()-joint_positions[:, 0].min(),
+                              joint_positions[:, 1].max()-joint_positions[:, 1].min(),
+                              joint_positions[:, 2].max()-joint_positions[:, 2].min()]).max() / 2.0
+        mid_x = (joint_positions[:, 0].max()+joint_positions[:, 0].min()) * 0.5
+        mid_y = (joint_positions[:, 1].max()+joint_positions[:, 1].min()) * 0.5
+        mid_z = (joint_positions[:, 2].max()+joint_positions[:, 2].min()) * 0.5
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+        
+        plt.show()
 
 
-# parameter = URArmParameter()
+
 # print("UR Arm parameters initialized.")
 
 # print("Initial position:")

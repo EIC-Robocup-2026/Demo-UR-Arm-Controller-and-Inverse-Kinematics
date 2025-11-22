@@ -4,25 +4,68 @@ import const as c
 import time
 import serial
 import math
+import numpy as np
 
 
+#enable or disable visualization
+#note: visualization does lag the control loop slightly
+VISUALIZATION_ENABLED = True
 
-# Initialize serial communication with ESP32 on COM7
-ser = None
+# Try to import matplotlib for visualization
 try:
-    ser = serial.Serial(port='/dev/ttyACM1', baudrate=115200, timeout=1)
-    print(f"Serial port opened: {ser.name}")
+    import matplotlib
+
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    print("Matplotlib imported successfully")
 except Exception as e:
-    print(f"Serial port not available (continuing without): {e}")
+    print(f"Warning: Could not import matplotlib ({type(e).__name__}: {e}). Visualization disabled.")
+    VISUALIZATION_ENABLED = False
+    plt = None
+    Axes3D = None
+
+# Setup live visualization (only if available)
+fig = None
+ax = None
+if VISUALIZATION_ENABLED:
+    try:
+        import matplotlib
+        matplotlib.use('TkAgg')  # Use TkAgg backend for better compatibility
+        plt.ion()  # Enable interactive mode
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        print("Visualization window created successfully")
+    except Exception as e:
+        print(f"Warning: Could not initialize visualization: {type(e).__name__}: {e}")
+        VISUALIZATION_ENABLED = False
+
+# Visualization update counter
+viz_update_counter = 0
+viz_update_frequency = 10  # Update visualization every N iterations
+
+# Fixed axis limits for stable visualization (based on arm workspace)
+FIXED_AXIS_LIMIT = 1000  # mm, adjusted based on arm dimensions
 
 
 # Initialize controller once
 controller = URMController()
 controller.start()  # Starts background listener (non-blocking)
 
+#if true serial is sending data (printing)
+SERIAL_IS_SENDING = False
+
 # Initialize UR Arm parameters
 parameter = parameter.URArmParameter()
 print("UR Arm parameters initialized.")
+
+# Initialize serial communication with ESP32 on some COM
+ser = None
+try:
+    ser = serial.Serial(port='COM7', baudrate=115200, timeout=1)
+    print(f"Serial port opened: {ser.name}")
+except Exception as e:
+    print(f"Serial port not available (continuing without): {e}")
+
 
 while True:
     # Get current direction and gripper values
@@ -30,41 +73,116 @@ while True:
     gripper = controller.returnGripperValue()
     gripper_roll_direction = controller.returnGripperRollDirection()
 
-    parameter.move_by(direction)
-    parameter.rotate_gripper(gripper_roll_direction)
-    
-    # Get current state
+    # Check for control start and pause requests
+    start = controller.isControlStartRequested()
+    pause = controller.isPauseRequested()
+
+    # Get current of all 7 servo angle state (in rad)
     end_pos = parameter.get_end_effector_position()
     thetas = parameter.get_current_thetas()
 
-    values = []
-    for i in range(6):
-        theta_deg = math.degrees(float(thetas[i])) - c.THETA_OFFSET_ANGLE[i]
-        values.append(f"{theta_deg:.4f}")
-    gripper_val = gripper - c.THETA_OFFSET_ANGLE[6]
-    values.append(f"{gripper_val:.4f}")
+    #start or pause serial sending
+    
+    if start:
+        SERIAL_IS_SENDING = True
+    if pause:
+        SERIAL_IS_SENDING = False
 
-    # Print end-effector position and joint angles in an easy-to-read format
-    print(
-        f"Pos: x={float(end_pos[0]):.2f}, y={float(end_pos[1]):.2f}, z={float(end_pos[2]):.2f} | "
-        + "Joints: " + ", ".join([f"θ{i+1}:{values[i]}°" for i in range(6)])
-        + f" | Gripper: {values[6]}°"
-    )
+    # Send all 7 servo deg value via serial if available
+    if SERIAL_IS_SENDING:
+
+        # Move arm and gripper based on inputs
+        parameter.move_by(direction)
+        parameter.rotate_gripper(gripper_roll_direction)
+
+        values = []
+        for i in range(6):
+            theta_deg = math.degrees(float(thetas[i])) - c.THETA_OFFSET_ANGLE[i]
+            values.append(f"{theta_deg:.4f}")
+        gripper_val = gripper - c.THETA_OFFSET_ANGLE[6]
+        values.append(f"{gripper_val:.4f}")
+        print(",".join(values))
     
     if not controller.running:
         break
-
-    ser.write(str(",".join(values)+'\n').encode('UTF-8'))
     
-    # Print on one line: thetas, end position, gripper, and gripper roll direction
-    # theta_str = " | ".join([f"θ{i+1}: {float(thetas[i]):.4f}" for i in range(6)])
-    # pos_str = f"Pos: [{float(end_pos[0]):.2f}, {float(end_pos[1]):.2f}, {float(end_pos[2]):.2f}]"
-    # gripper_str = f"Gripper: {gripper:.1f}°"
-    # print(f"{theta_str} | {pos_str} | {gripper_str}")
-    # print(f"Direction: {direction} | Roll: {gripper_roll_direction}")
 
-    # Convert theta 1-6 and gripper angle to int, subtract offset, and print
+    ##############################################################
+    #VISUALIZATION CODE, NOT RELEVANT TO CONTROL AND SERIAL SENDING
+    ##############################################################
 
-    time.sleep(0.1)
+    # Update visualization periodically (only if enabled)
+    if VISUALIZATION_ENABLED:
+        viz_update_counter += 1
+        if viz_update_counter >= viz_update_frequency:
+            viz_update_counter = 0
+            
+            try:
+                ax.clear()
+                
+                # Calculate joint positions for visualization
+                dh_params = parameter.dh_parameters
+                import sympy as sp
+                T_total = sp.eye(4)
+                joint_positions = [np.array([0, 0, 0])]  # Start at origin
+                
+                # Substitute theta values
+                theta_values = {parameter.theta1: thetas[0],
+                                parameter.theta2: thetas[1],
+                                parameter.theta3: thetas[2],
+                                parameter.theta4: thetas[3],
+                                parameter.theta5: thetas[4],
+                                parameter.theta6: thetas[5]}
+                
+                # Calculate position of each joint
+                for i in range(dh_params.rows):
+                    d, theta, a, alpha = dh_params.row(i)
+                    T = parameter.dh_to_transformation(d, theta, a, alpha)
+                    T_substituted = T.subs(theta_values)
+                    T_total = T_total * T_substituted
+                    
+                    # Extract position from transformation matrix
+                    pos = T_total[:3, 3]
+                    pos_numeric = np.array([float(pos[0]), float(pos[1]), float(pos[2])])
+                    joint_positions.append(pos_numeric)
+                
+                # Convert to numpy array
+                joint_positions = np.array(joint_positions)
+                
+                # Plot the arm links
+                ax.plot(joint_positions[:, 0], joint_positions[:, 1], joint_positions[:, 2], 
+                        'b-o', linewidth=2, markersize=8, label='Arm links')
+                
+                # Plot joint positions
+                ax.scatter(joint_positions[:, 0], joint_positions[:, 1], joint_positions[:, 2], 
+                           c='red', s=100, label='Joints')
+                
+                # Plot end effector
+                ax.scatter(joint_positions[-1, 0], joint_positions[-1, 1], joint_positions[-1, 2], 
+                           c='green', s=150, marker='*', label='End Effector')
+                
+                # Labels and formatting
+                ax.set_xlabel('X (mm)')
+                ax.set_ylabel('Y (mm)')
+                ax.set_zlabel('Z (mm)')
+                ax.set_title('UR Arm Live Kinematic Visualization')
+                ax.legend()
+                ax.grid(True, alpha=0.3)
+                
+                # Set FIXED axis limits (graph does not translate)
+                ax.set_xlim(-FIXED_AXIS_LIMIT, FIXED_AXIS_LIMIT)
+                ax.set_ylim(-FIXED_AXIS_LIMIT, FIXED_AXIS_LIMIT)
+                ax.set_zlim(0, 2 * FIXED_AXIS_LIMIT)
+                
+                fig.canvas.draw()
+                fig.canvas.flush_events()
+            except Exception as e:
+                print(f"Visualization error: {e}")
+                VISUALIZATION_ENABLED = False
+    
+
+    time.sleep(0.05)
 
 controller.stop()
+if VISUALIZATION_ENABLED:
+    plt.close('all')
