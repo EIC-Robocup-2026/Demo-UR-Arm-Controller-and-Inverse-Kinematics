@@ -12,7 +12,7 @@ a4 = 50
 
 
 #initial angles for joints 1 - 6 in rad
-initial_angle = [0,sp.pi/4,sp.pi/4,0,0,0]
+initial_angle = [0,sp.pi/4,sp.pi/3,0,sp.pi/2,0]
 
 #gripper parameters
 GRIPPER_MAX_ANGLE = 90  # degrees

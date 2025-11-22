@@ -58,7 +58,7 @@ SERIAL_IS_SENDING = False
 parameter = parameter.URArmParameter()
 print("UR Arm parameters initialized.")
 
-# Initialize serial communication with ESP32 on some COM
+# Initialize serial communication with ESP32 on COM7
 ser = None
 try:
     ser = serial.Serial(port='COM7', baudrate=115200, timeout=1)

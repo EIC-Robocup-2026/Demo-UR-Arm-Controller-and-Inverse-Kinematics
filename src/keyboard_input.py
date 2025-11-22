@@ -18,6 +18,10 @@ class URMController:
         # Running state
         self.running = True
         
+        # Control and reset flags
+        self.control_start_requested = False
+        self.pause_requested = False
+        
         # Key states to track continuous movement
         self.keys_pressed = {
             'w': False,
@@ -41,11 +45,15 @@ class URMController:
     def on_key_press(self, key):
         """Handle keyboard press events"""
         try:
-            # Character keys (w, a, s, d, r) - handle both lowercase and uppercase
+            # Character keys (w, a, s, d) - handle both lowercase and uppercase
             if hasattr(key, 'char'):
                 char = key.char.lower() if key.char else None
                 if char in self.keys_pressed:
                     self.keys_pressed[char] = True
+                elif char == 'o':
+                    self.control_start_requested = True
+                elif char == 'p':
+                    self.pause_requested = True
             
             # Special keys
             elif key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
@@ -145,6 +153,8 @@ class URMController:
         print("  ↓ (Down Arrow) - Close gripper")
         print("  <- (Left Arrow) - Gripper roll direction -1")
         print("  -> (Right Arrow) - Gripper roll direction +1")
+        print("  O - Start/Resume control")
+        print("  P - Pause control")
         print("  ESC - Exit")
         print()
     
@@ -169,6 +179,20 @@ class URMController:
     def returnGripperRollDirection(self):
         """Return the current gripper roll direction (1, 0, or -1)"""
         return self.gripper_roll_direction
+    
+    def isControlStartRequested(self):
+        """Check if control start was requested ('o' key) and clear the flag"""
+        if self.control_start_requested:
+            self.control_start_requested = False
+            return True
+        return False
+    
+    def isPauseRequested(self):
+        """Check if pause was requested ('p' key) and clear the flag"""
+        if self.pause_requested:
+            self.pause_requested = False
+            return True
+        return False
     
     def run(self, update_rate=20):
         """Run the controller update loop"""

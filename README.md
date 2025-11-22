@@ -13,12 +13,14 @@ This project provides a real-time keyboard controller for controlling a UR (Univ
 The project requires the following Python packages:
 
 - **numpy** - For numerical computations and vector operations
+- **sympy** - For symbolic and differential computations
 - **pynput** - For capturing keyboard input events in real-time
-- **pyserial** (planned) - For serial communication with ESP32 microcontroller
+- **serial** - For serial communication with ESP32 microcontroller
+- **matplotlib** - For real-time visualization of the arm's position and orientation
 
 Install dependencies using:
 ```bash
-pip install numpy pynput pyserial
+pip install numpy pynput serial matplotlib sympy
 ```
 
 ## Project Structure
