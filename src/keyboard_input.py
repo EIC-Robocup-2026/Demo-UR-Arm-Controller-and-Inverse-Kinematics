@@ -10,10 +10,9 @@ class URMController:
         # Direction vector [x, y, z]
         self.direction = sp.Matrix([0.0, 0.0, 0.0])
         
-        # Gripper angle (0-90 degrees)
-        self.gripper_angle = c.GRIPPER_INITIAL_ANGLE
-        
-        self.gripper_roll_direction = 0  # -1 for clockwise, +1 for anti clockwise, 0 for no rotation
+        # Gripper control inputs (direction of change, not state)
+        self.gripper_angle_delta = 0  # +1 to open, -1 to close
+        self.gripper_roll_direction = 0  # -1, 0, or +1
 
         # Running state
         self.running = True
@@ -21,6 +20,7 @@ class URMController:
         # Control and reset flags
         self.control_start_requested = False
         self.pause_requested = False
+        self.restore_state_requested = False
         
         # Key states to track continuous movement
         self.keys_pressed = {
@@ -54,6 +54,8 @@ class URMController:
                     self.control_start_requested = True
                 elif char == 'p':
                     self.pause_requested = True
+                elif char == 'i':
+                    self.restore_state_requested = True
             
             # Special keys
             elif key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
@@ -99,14 +101,15 @@ class URMController:
             pass
     
     def update_gripper(self):
-        """Update gripper angle and roll direction based on arrow key states"""
-        # Gripper angle control (up/down arrows)
+        """Update gripper control signals based on arrow key states"""
+        # Gripper angle control (up/down arrows) - send delta values
+        self.gripper_angle_delta = 0
         if self.keys_pressed['up']:
             # Up arrow: open gripper (increase angle)
-            self.gripper_angle = min(self.gripper_angle + 1, c.GRIPPER_MAX_ANGLE)
-        if self.keys_pressed['down']:
+            self.gripper_angle_delta = 1
+        elif self.keys_pressed['down']:
             # Down arrow: close gripper (decrease angle)
-            self.gripper_angle = max(self.gripper_angle - 1, c.GRIPPER_MIN_ANGLE)
+            self.gripper_angle_delta = -1
         
         # Gripper roll direction control (left/right arrows)
         if self.keys_pressed['right']:
@@ -155,6 +158,7 @@ class URMController:
         print("  -> (Right Arrow) - Gripper roll direction +1")
         print("  O - Start/Resume control")
         print("  P - Pause control")
+        print("  I - Restore arm to last saved position")
         print("  ESC - Exit")
         print()
     
@@ -173,8 +177,8 @@ class URMController:
         return self.direction
     
     def returnGripperValue(self):
-        """Return the current gripper angle value (0-90)"""
-        return self.gripper_angle
+        """Return the gripper angle delta value (+1 to open, -1 to close, 0 for no change)"""
+        return self.gripper_angle_delta
     
     def returnGripperRollDirection(self):
         """Return the current gripper roll direction (1, 0, or -1)"""
@@ -191,6 +195,13 @@ class URMController:
         """Check if pause was requested ('p' key) and clear the flag"""
         if self.pause_requested:
             self.pause_requested = False
+            return True
+        return False
+    
+    def isRestoreStateRequested(self):
+        """Check if restore state was requested ('i' key) and clear the flag"""
+        if self.restore_state_requested:
+            self.restore_state_requested = False
             return True
         return False
     

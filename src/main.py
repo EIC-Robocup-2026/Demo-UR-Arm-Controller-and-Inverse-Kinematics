@@ -9,7 +9,7 @@ import numpy as np
 
 #enable or disable visualization
 #note: visualization does lag the control loop slightly
-VISUALIZATION_ENABLED = True
+VISUALIZATION_ENABLED = False
 
 # Try to import matplotlib for visualization
 try:
@@ -68,18 +68,20 @@ except Exception as e:
 
 
 while True:
-    # Get current direction and gripper values
+    # Get current direction and gripper control inputs
     direction = controller.returnDirection()
-    gripper = controller.returnGripperValue()
+    gripper_angle_delta = controller.returnGripperValue()
     gripper_roll_direction = controller.returnGripperRollDirection()
 
     # Check for control start and pause requests
     start = controller.isControlStartRequested()
     pause = controller.isPauseRequested()
+    restore = controller.isRestoreStateRequested()
 
     # Get current of all 7 servo angle state (in rad)
     end_pos = parameter.get_end_effector_position()
     thetas = parameter.get_current_thetas()
+    gripper = parameter.get_gripper_angle()
 
     #start or pause serial sending
     
@@ -87,13 +89,21 @@ while True:
         SERIAL_IS_SENDING = True
     if pause:
         SERIAL_IS_SENDING = False
+    
+    # Restore arm to last saved position, only available when not sending serial
+    if restore and not SERIAL_IS_SENDING:
+        parameter.load_theta_state()
+        # print("Arm position restored successfully")
+  
 
     # Send all 7 servo deg value via serial if available
     if SERIAL_IS_SENDING:
 
-        # Move arm and gripper based on inputs
+        # Update gripper state based on keyboard input
+        parameter.update_gripper(gripper_angle_delta, gripper_roll_direction)
+
+        # Move arm based on direction input
         parameter.move_by(direction)
-        parameter.rotate_gripper(gripper_roll_direction)
 
         values = []
         for i in range(6):
@@ -101,7 +111,11 @@ while True:
             values.append(f"{theta_deg:.4f}")
         gripper_val = gripper - c.THETA_OFFSET_ANGLE[6]
         values.append(f"{gripper_val:.4f}")
-        print(",".join(values))
+        output_string = ",".join(values)
+        print(output_string)
+        
+        # Save theta state after each successful movement
+        parameter.save_theta_state()
     
     if not controller.running:
         break

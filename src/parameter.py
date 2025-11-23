@@ -2,6 +2,9 @@ import const as c
 import sympy as sp
 import numpy as np
 import time
+import json
+import os
+from datetime import datetime
 
 class URArmParameter:
     """Class to hold UR Arm parameters"""
@@ -23,6 +26,10 @@ class URArmParameter:
 
         #initialize thetas, these will be used both controlling the arm and calculating DH parameters
         self.thetas = self.joint_initializing_angle.copy()  # in rad
+        
+        # Initialize gripper parameters
+        self.gripper_angle = c.GRIPPER_INITIAL_ANGLE  # 0-90 degrees
+        self.gripper_roll_direction = 0  # -1, 0, or +1
         
         # Initialize reset flag
         self.is_resetting = False
@@ -168,6 +175,117 @@ class URArmParameter:
         # Update thetas
         self.thetas[5] = new_theta6
     
+    def update_gripper(self, gripper_angle_delta=0, roll_direction=0):
+        """Update gripper angle and roll direction
+        
+        Args:
+            gripper_angle_delta: Change in gripper angle (-1 to close, +1 to open)
+            roll_direction: Gripper roll direction (-1, 0, or +1)
+        """
+        # Update gripper angle
+        if gripper_angle_delta != 0:
+            self.gripper_angle = max(c.GRIPPER_MIN_ANGLE, 
+                                    min(c.GRIPPER_MAX_ANGLE, 
+                                        self.gripper_angle + gripper_angle_delta))
+        
+        # Update gripper roll direction
+        self.gripper_roll_direction = roll_direction
+        
+        # Apply roll rotation to theta6
+        if roll_direction != 0:
+            self.rotate_gripper(roll_direction)
+    
+    def get_gripper_angle(self):
+        """Return the current gripper angle (0-90 degrees)"""
+        return self.gripper_angle
+    
+    def get_gripper_roll_direction(self):
+        """Return the current gripper roll direction (-1, 0, or +1)"""
+        return self.gripper_roll_direction
+    
+    def set_gripper_angle(self, angle):
+        """Set gripper angle directly
+        
+        Args:
+            angle: Gripper angle in degrees (0-90)
+        """
+        self.gripper_angle = max(c.GRIPPER_MIN_ANGLE, min(c.GRIPPER_MAX_ANGLE, angle))
+    
+    def save_theta_state(self, filepath=None):
+        """Save current theta values and gripper state to JSON file
+        
+        Args:
+            filepath: Path to save JSON file. If None, uses default theta_state.json
+        """
+        if filepath is None:
+            # Get the directory of this file
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            filepath = os.path.join(script_dir, 'theta_state.json')
+        
+        # Convert sympy Matrix to list of floats
+        thetas_list = [float(t) for t in self.thetas]
+        
+        state_data = {
+            "thetas": thetas_list,
+            "gripper_angle": self.gripper_angle,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(state_data, f, indent=2)
+            # print(f"Theta state saved to {filepath}")
+            return True
+        except Exception as e:
+            # print(f"Error saving theta state: {e}")
+            return False
+    
+    def load_theta_state(self, filepath=None):
+        """Load theta values and gripper state from JSON file
+        
+        Args:
+            filepath: Path to load JSON file from. If None, uses default theta_state.json
+            
+        Returns:
+            True if successfully loaded, False otherwise
+        """
+        if filepath is None:
+            # Get the directory of this file
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            filepath = os.path.join(script_dir, 'theta_state.json')
+        
+        try:
+            with open(filepath, 'r') as f:
+                state_data = json.load(f)
+            
+            # Load thetas
+            if "thetas" in state_data:
+                thetas_list = state_data["thetas"]
+                if len(thetas_list) == 6:
+                    self.thetas = sp.Matrix([sp.Float(t) for t in thetas_list])
+                    
+                    # Load gripper angle if available
+                    if "gripper_angle" in state_data:
+                        self.gripper_angle = state_data["gripper_angle"]
+                    
+                    print(f"Theta state loaded from {filepath}")
+                    print(f"Thetas: {[f'{float(t):.4f}' for t in self.thetas]}")
+                    print(f"Gripper angle: {self.gripper_angle}")
+                    return True
+                else:
+                    print(f"Error: Expected 6 thetas, got {len(thetas_list)}")
+                    return False
+            else:
+                print("Error: 'thetas' key not found in JSON file")
+                return False
+        
+        except FileNotFoundError:
+            print(f"Error: theta_state.json file not found at {filepath}")
+            return False
+        except Exception as e:
+            print(f"Error loading theta state: {e}")
+            return False
+    
 
     #If movement by unit direction is possible, update thetas and return True, else return False
     def move_by(self, unit_direction):
@@ -226,7 +344,6 @@ class URArmParameter:
             return True  # movement successful
         
         else:
-            self.thetas = self.theta_copy
             return False  # movement failed due to max iterations
 
     def visualize_kinematic(self, thetas=None, title="UR Arm Kinematic Visualization"):
