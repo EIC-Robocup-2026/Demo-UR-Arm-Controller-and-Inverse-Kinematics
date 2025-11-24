@@ -9,7 +9,7 @@ import numpy as np
 
 #enable or disable visualization
 #note: visualization does lag the control loop slightly
-VISUALIZATION_ENABLED = True
+VISUALIZATION_ENABLED = False
 
 # Try to import matplotlib for visualization
 try:
@@ -110,8 +110,9 @@ while True:
             values.append(f"{theta_deg:.4f}")
         gripper_val = gripper - c.THETA_OFFSET_ANGLE[6]
         values.append(f"{gripper_val:.4f}")
-        output_string = ",".join(values)
+        output_string = ",".join(values) + "\n"
         print(output_string)
+        ser.write(output_string.encode("UTF-8"))
         
         # Save theta state after each successful movement
         parameter.save_theta_state()
