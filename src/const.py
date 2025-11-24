@@ -27,4 +27,4 @@ MAX_ITERATIONS = 5  # maximum iterations for inverse kinematics solver
 CONVERGENCE_THRESHOLD = 0.01  # convergence threshold for IK solver in mm
 RESET_STEP_SIZE = 0.05  # step size for resetting arm (radians)
 
-THETA_OFFSET_ANGLE = [-135, -135, -135, -135, -135, -135, 0]
+THETA_OFFSET_ANGLE = [-135, -135, -135, -135, -135, -90, 0]
