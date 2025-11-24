@@ -9,12 +9,11 @@ import numpy as np
 
 #enable or disable visualization
 #note: visualization does lag the control loop slightly
-VISUALIZATION_ENABLED = False
+VISUALIZATION_ENABLED = True
 
 # Try to import matplotlib for visualization
 try:
     import matplotlib
-
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import Axes3D
     print("Matplotlib imported successfully")
@@ -61,7 +60,7 @@ print("UR Arm parameters initialized.")
 # Initialize serial communication with ESP32 on COM7
 ser = None
 try:
-    ser = serial.Serial(port='COM7', baudrate=115200, timeout=1)
+    ser = serial.Serial(port='/dev/ttyACM0', baudrate=115200, timeout=1)
     print(f"Serial port opened: {ser.name}")
 except Exception as e:
     print(f"Serial port not available (continuing without): {e}")
