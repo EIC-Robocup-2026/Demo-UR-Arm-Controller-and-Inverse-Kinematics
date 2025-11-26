@@ -53,14 +53,14 @@ controller.start()  # Starts background listener (non-blocking)
 #if true serial is sending data (printing)
 SERIAL_IS_SENDING = False
 
-# Initialize UR Arm parameters
+# Initialize UR Arm parametersoddddddddasd
 parameter = parameter.URArmParameter()
 print("UR Arm parameters initialized.")
 
 # Initialize serial communication with ESP32 on COM7
 ser = None
 try:
-    ser = serial.Serial(port='/dev/ttyACM0', baudrate=115200, timeout=1)
+    ser = serial.Serial(port='COM6', baudrate=115200, timeout=1)
     print(f"Serial port opened: {ser.name}")
 except Exception as e:
     print(f"Serial port not available (continuing without): {e}")
@@ -71,11 +71,14 @@ while True:
     direction = controller.returnDirection()
     gripper_angle_delta = controller.returnGripperValue()
     gripper_roll_direction = controller.returnGripperRollDirection()
+    pitch_rotation_direction = controller.returnPitchRotationDirection()
+    yaw_rotation_direction = controller.returnYawRotationDirection()
 
     # Check for control start and pause requests
     start = controller.isControlStartRequested()
     pause = controller.isPauseRequested()
     restore = controller.isRestoreStateRequested()
+    reset = controller.isResetRequested()
 
     # Get current of all 7 servo angle state (in rad)
     end_pos = parameter.get_end_effector_position()
@@ -93,13 +96,24 @@ while True:
     if restore and not SERIAL_IS_SENDING:
         parameter.load_theta_state()
         # print("Arm position restored successfully")
-  
+    
+    # Reset arm to initial position, only available when not sending serial
+    if reset and not SERIAL_IS_SENDING:
+        parameter.reset_to_initial_position()
 
     # Send all 7 servo deg value via serial if available
     if SERIAL_IS_SENDING:
 
         # Update gripper state based on keyboard input
         parameter.update_gripper(gripper_angle_delta, gripper_roll_direction)
+        
+        # Update pitch angle based on keyboard input
+        if pitch_rotation_direction != 0:
+            parameter.rotate_pitch(pitch_rotation_direction)
+        
+        # Update yaw angle based on keyboard input
+        if yaw_rotation_direction != 0:
+            parameter.rotate_yaw(yaw_rotation_direction)
 
         # Move arm based on direction input
         parameter.move_by(direction)
@@ -112,7 +126,8 @@ while True:
         values.append(f"{gripper_val:.4f}")
         output_string = ",".join(values) + "\n"
         print(output_string)
-        ser.write(output_string.encode("UTF-8"))
+        if ser is not None and ser.is_open:
+            ser.write(output_string.encode("UTF-8"))
         
         # Save theta state after each successful movement
         parameter.save_theta_state()

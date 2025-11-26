@@ -13,6 +13,12 @@ class URMController:
         # Gripper control inputs (direction of change, not state)
         self.gripper_angle_delta = 0  # +1 to open, -1 to close
         self.gripper_roll_direction = 0  # -1, 0, or +1
+        
+        # Pitch angle control input (direction of change, not state)
+        self.pitch_rotation_direction = 0  # -1 to decrease pitch, +1 to increase pitch, 0 for no change
+        
+        # Yaw angle control input (direction of change, not state)
+        self.yaw_rotation_direction = 0  # -1 to decrease yaw, +1 to increase yaw, 0 for no change
 
         # Running state
         self.running = True
@@ -21,6 +27,7 @@ class URMController:
         self.control_start_requested = False
         self.pause_requested = False
         self.restore_state_requested = False
+        self.reset_requested = False
         
         # Key states to track continuous movement
         self.keys_pressed = {
@@ -33,7 +40,11 @@ class URMController:
             'left': False,
             'right': False,
             'up': False,
-            'down': False
+            'down': False,
+            'j': False,
+            'k': False,
+            'n': False,
+            'm': False
         }
         
         # Setup listeners
@@ -56,6 +67,16 @@ class URMController:
                     self.pause_requested = True
                 elif char == 'i':
                     self.restore_state_requested = True
+                elif char == 'r':
+                    self.reset_requested = True
+                elif char == 'j':
+                    self.keys_pressed['j'] = True
+                elif char == 'k':
+                    self.keys_pressed['k'] = True
+                elif char == 'n':
+                    self.keys_pressed['n'] = True
+                elif char == 'm':
+                    self.keys_pressed['m'] = True
             
             # Special keys
             elif key == keyboard.Key.shift_l or key == keyboard.Key.shift_r:
@@ -96,6 +117,16 @@ class URMController:
                 self.keys_pressed['up'] = False
             elif key == keyboard.Key.down:
                 self.keys_pressed['down'] = False
+            elif hasattr(key, 'char'):
+                char = key.char.lower() if key.char else None
+                if char == 'j':
+                    self.keys_pressed['j'] = False
+                elif char == 'k':
+                    self.keys_pressed['k'] = False
+                elif char == 'n':
+                    self.keys_pressed['n'] = False
+                elif char == 'm':
+                    self.keys_pressed['m'] = False
         
         except AttributeError:
             pass
@@ -118,6 +149,28 @@ class URMController:
             self.gripper_roll_direction = -1
         else:
             self.gripper_roll_direction = 0
+    
+    def update_pitch(self):
+        """Update pitch angle control signals based on j/k key states"""
+        # Pitch angle control (j/k keys) - send direction values
+        self.pitch_rotation_direction = 0
+        if self.keys_pressed['k']:
+            # K key: increase pitch angle (theta5)
+            self.pitch_rotation_direction = 1
+        elif self.keys_pressed['j']:
+            # J key: decrease pitch angle (theta5)
+            self.pitch_rotation_direction = -1
+    
+    def update_yaw(self):
+        """Update yaw angle control signals based on n/m key states"""
+        # Yaw angle control (n/m keys) - send direction values
+        self.yaw_rotation_direction = 0
+        if self.keys_pressed['m']:
+            # M key: increase yaw angle (theta4)
+            self.yaw_rotation_direction = 1
+        elif self.keys_pressed['n']:
+            # N key: decrease yaw angle (theta4)
+            self.yaw_rotation_direction = -1
     
     def update_direction(self):
         """Update direction vector based on current key states"""
@@ -144,6 +197,12 @@ class URMController:
         
         # Update gripper angle
         self.update_gripper()
+        
+        # Update pitch angle
+        self.update_pitch()
+        
+        # Update yaw angle
+        self.update_yaw()
     
     def start(self):
         """Start the controller listeners"""
@@ -156,9 +215,14 @@ class URMController:
         print("  ↓ (Down Arrow) - Close gripper")
         print("  <- (Left Arrow) - Gripper roll direction -1")
         print("  -> (Right Arrow) - Gripper roll direction +1")
+        print("  J - Decrease pitch angle (theta5)")
+        print("  K - Increase pitch angle (theta5)")
+        print("  N - Decrease yaw angle (theta4)")
+        print("  M - Increase yaw angle (theta4)")
         print("  O - Start/Resume control")
         print("  P - Pause control")
         print("  I - Restore arm to last saved position")
+        print("  R - Reset arm to initial position")
         print("  ESC - Exit")
         print()
     
@@ -184,6 +248,14 @@ class URMController:
         """Return the current gripper roll direction (1, 0, or -1)"""
         return self.gripper_roll_direction
     
+    def returnPitchRotationDirection(self):
+        """Return the current pitch rotation direction (+1 to increase, -1 to decrease, 0 for no change)"""
+        return self.pitch_rotation_direction
+    
+    def returnYawRotationDirection(self):
+        """Return the current yaw rotation direction (+1 to increase, -1 to decrease, 0 for no change)"""
+        return self.yaw_rotation_direction
+    
     def isControlStartRequested(self):
         """Check if control start was requested ('o' key) and clear the flag"""
         if self.control_start_requested:
@@ -202,6 +274,13 @@ class URMController:
         """Check if restore state was requested ('i' key) and clear the flag"""
         if self.restore_state_requested:
             self.restore_state_requested = False
+            return True
+        return False
+    
+    def isResetRequested(self):
+        """Check if reset was requested ('r' key) and clear the flag"""
+        if self.reset_requested:
+            self.reset_requested = False
             return True
         return False
     

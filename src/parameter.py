@@ -175,6 +175,36 @@ class URArmParameter:
         # Update thetas
         self.thetas[5] = new_theta6
     
+    def rotate_pitch(self, pitch_direction):
+        """Rotate the pitch angle (theta5) by a small angle in the given direction
+        
+        Args:
+            pitch_direction: +1 to increase angle, -1 to decrease angle
+        """
+        # Update theta5 (pitch angle / wrist roll offset)
+        new_theta5 = self.thetas[4] + pitch_direction * sp.rad(c.PITCH_ROTATION_STEP)
+        
+        # Update thetas
+        self.thetas[4] = new_theta5
+    
+    def rotate_yaw(self, yaw_direction):
+        """Rotate the yaw angle (theta4) by a small angle in the given direction
+        
+        Args:
+            yaw_direction: +1 to increase angle, -1 to decrease angle
+        """
+        # Update theta4 (yaw angle / wrist)
+        new_theta4 = self.thetas[3] + yaw_direction * sp.rad(c.YAW_ROTATION_STEP)
+        
+        # Update thetas
+        self.thetas[3] = new_theta4
+    
+    def reset_to_initial_position(self):
+        """Reset all theta values to their initial positions"""
+        self.thetas = self.joint_initializing_angle.copy()
+        print("Arm reset to initial position")
+        print(f"Thetas: {[f'{float(t):.4f}' for t in self.thetas]}")
+    
     def update_gripper(self, gripper_angle_delta=0, roll_direction=0):
         """Update gripper angle and roll direction
         
@@ -428,21 +458,3 @@ class URArmParameter:
         
         plt.show()
 
-
-
-# print("UR Arm parameters initialized.")
-
-# print("Initial position:")
-# init_pos = parameter.get_end_effector_position()
-# print(init_pos.evalf(n=5))
-
-# for i in range(100):
-#     parameter.move_by(sp.Matrix([1,1,0]))
-
-
-# print("\nFinal position:")
-# final_pos = parameter.get_end_effector_position()
-# print(final_pos.evalf(n=5))
-
-# print("\nDiff ", init_pos.evalf(n=5) - final_pos.evalf(n=5))
-# print("\nSize ", (init_pos.evalf(n=5) - final_pos.evalf(n=5)).norm())
