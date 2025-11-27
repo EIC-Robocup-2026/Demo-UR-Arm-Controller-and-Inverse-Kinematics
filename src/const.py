@@ -12,7 +12,7 @@ a4 = 50
 
 
 #initial angles for joints 1 - 6 in rad
-initial_angle = [0, sp.pi/12, sp.pi/12, 0, 0, 0]
+initial_angle = [0, sp.pi/12, sp.pi/6, 0, -sp.pi/2, 0]
 
 #gripper parametersA
 GRIPPER_MAX_ANGLE = 90  # degrees
@@ -28,5 +28,9 @@ YAW_ROTATION_STEP = 1  # degrees per yaw angle control input (theta4 rotation)
 MAX_ITERATIONS = 5  # maximum iterations for inverse kinematics solver
 CONVERGENCE_THRESHOLD = 0.01  # convergence threshold for IK solver in mm
 RESET_STEP_SIZE = 0.05  # step size for resetting arm (radians)
+MOVE_SPEED = 100  # speed factor for arm movement for move_absolute function mm/s
 
-THETA_OFFSET_ANGLE = [-135, -135, -135, -135, -135, -90, 0]
+
+
+
+THETA_OFFSET_ANGLE = [-135, -135, -135, -135, -90, -135, 0]

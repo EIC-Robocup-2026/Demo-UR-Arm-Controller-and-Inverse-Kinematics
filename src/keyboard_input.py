@@ -28,6 +28,8 @@ class URMController:
         self.pause_requested = False
         self.restore_state_requested = False
         self.reset_requested = False
+        self.absolute_move_requested = False  # "/" key pressed during pause
+        self.absolute_coordinate = None  # Stores valid absolute coordinate [x, y, z]
         
         # Key states to track continuous movement
         self.keys_pressed = {
@@ -69,6 +71,8 @@ class URMController:
                     self.restore_state_requested = True
                 elif char == 'r':
                     self.reset_requested = True
+                elif char == '/':
+                    self.absolute_move_requested = True
                 elif char == 'j':
                     self.keys_pressed['j'] = True
                 elif char == 'k':
@@ -283,6 +287,58 @@ class URMController:
             self.reset_requested = False
             return True
         return False
+    
+    def isAbsoluteMoveRequested(self):
+        """Check if absolute move was requested ('/' key) and clear the flag"""
+        if self.absolute_move_requested:
+            self.absolute_move_requested = False
+            return True
+        return False
+    
+    def getAbsoluteCoordinate(self):
+        """Get the stored absolute coordinate and clear it"""
+        coord = self.absolute_coordinate
+        self.absolute_coordinate = None
+        return coord
+    
+    def inputAbsoluteCoordinate(self):
+        """Prompt user to input absolute coordinate during pause and validate
+        
+        Returns:
+            sp.Matrix([x, y, z]) if input is valid
+            None if input is invalid
+        """
+        try:
+            user_input = input("Enter target position (format: 100,100,100): ").strip()
+            
+            # Parse input
+            parts = user_input.split(',')
+            if len(parts) != 3:
+                print("[INVALID] Input must contain exactly 3 comma-separated values (x,y,z)")
+                return None
+            
+            # Convert to floats
+            x, y, z = float(parts[0].strip()), float(parts[1].strip()), float(parts[2].strip())
+            
+            # Basic validation: check if coordinates are within reasonable workspace
+            # Adjust these limits based on your arm's actual workspace
+            if abs(x) > 2000 or abs(y) > 2000 or z > 2000 or z < 0:
+                print(f"[INVALID] Coordinates ({x:.1f}, {y:.1f}, {z:.1f}) outside workspace bounds")
+                print("  Expected ranges: x,y in [-2000,2000], z in [0,2000]")
+                return None
+            
+            # Valid input
+            self.absolute_coordinate = sp.Matrix([x, y, z])
+            print(f"[VALID] Target position set to: ({x:.1f}, {y:.1f}, {z:.1f}) mm")
+            return self.absolute_coordinate
+        
+        except ValueError as e:
+            print(f"[INVALID] Failed to parse input: {e}")
+            print("  Please use format: 100,100,100 (numbers only, separated by commas)")
+            return None
+        except Exception as e:
+            print(f"[ERROR] Unexpected error during input: {e}")
+            return None
     
     def run(self, update_rate=20):
         """Run the controller update loop"""

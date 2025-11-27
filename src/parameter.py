@@ -4,6 +4,7 @@ import numpy as np
 import time
 import json
 import os
+import math
 from datetime import datetime
 
 class URArmParameter:
@@ -97,7 +98,7 @@ class URArmParameter:
     def dh(self):
         """Return the DH parameters as np.array (d, theta, a, alpha)"""
         dh_parameter = sp.Matrix([[self.l1, self.theta_parameters[0], 0, sp.pi/2],
-                              [self.a1, self.theta_parameters[1], 0, -sp.pi/2],
+                              [self.a1, 0, 0, -sp.pi/2],
                               [self.l2, 0, 0, -sp.pi/2],
                               [self.a2, self.theta_parameters[2], 0, sp.pi/2],
                               [self.l3, 0, 0, sp.pi/2],
@@ -458,3 +459,163 @@ class URArmParameter:
         
         plt.show()
 
+    def move_absolute(self, target_position):
+        """Move the end-effector to an absolute target position using iterative Jacobian inverse
+        
+        Args:
+            target_position: sp.Matrix of target (x, y, z) position
+        """
+        # Initialize movement state variables
+        self.move_absolute_active = True
+        self.current_pos = self.get_end_effector_position()
+        self.target_pos = target_position
+        
+        # Define error and movement parameters
+        self.error = self.target_pos - self.current_pos
+        self.error_magnitude = self.error.norm()
+
+        # print(self.error_magnitude)
+        
+        if self.error_magnitude < c.CONVERGENCE_THRESHOLD:
+            print("Already at target position")
+            self.move_absolute_active = False
+            return
+        
+        self.error_direction = self.error.normalized()
+        
+        # Step size based on MOVE_SPEED (mm/s) and control loop frequency (20 Hz = 0.05s)
+        # step_size = MOVE_SPEED * 0.05 (mm per control loop iteration)
+        # self.move_speed_step = (c.MOVE_SPEED * 0.05)
+        self.move_speed_step = c.CONTROL_STEP_SIZE
+        
+        # Determine number of waypoints based on distance and move speed step
+        self.waypoints_number = int(math.ceil(self.error_magnitude / self.move_speed_step))
+        
+        # Generate waypoint positions
+        self.waypoint_positions = []
+        for i in range(1, self.waypoints_number + 1):
+            waypoint_pos = self.current_pos + (self.error_direction * self.move_speed_step * i)
+            self.waypoint_positions.append(waypoint_pos)
+        
+        # Solve IK for each waypoint and store theta configurations
+        self.waypoint_joint_angles = []
+        theta_copy_prev = self.thetas.copy()  # Start from current thetas
+        
+        for waypoint_index, waypoint_pos in enumerate(self.waypoint_positions):
+            # Use previous waypoint's theta as starting point for IK solver
+            theta_copy_iter = theta_copy_prev.copy()
+            
+            # Calculate initial error for this waypoint
+            pos_numpy = self.fk_func(float(theta_copy_iter[0]), float(theta_copy_iter[1]), 
+                                    float(theta_copy_iter[2]), float(theta_copy_iter[3]), 
+                                    float(theta_copy_iter[4]), float(theta_copy_iter[5]))
+            current_pos_iter = sp.Matrix(pos_numpy.flatten())
+            error_iter = waypoint_pos - current_pos_iter
+            
+            # Use IK solver to find theta configuration for this waypoint
+            # Starting from previous waypoint's theta configuration
+            iteration = 0
+            
+            while (error_iter.norm() > c.CONVERGENCE_THRESHOLD) and (iteration < c.MAX_ITERATIONS):
+                # Use compiled Jacobian function for speed
+                jac_numpy = self.jac_func(float(theta_copy_iter[0]), float(theta_copy_iter[1]), 
+                                         float(theta_copy_iter[2]), float(theta_copy_iter[3]), 
+                                         float(theta_copy_iter[4]), float(theta_copy_iter[5]))
+                error_numpy = np.array(error_iter.evalf(), dtype=float).flatten()
+                
+                # Use numerical pseudo-inverse
+                jac_pinv = np.linalg.pinv(jac_numpy)
+                delta_thetas_numpy = jac_pinv @ error_numpy
+                
+                # Convert back to sympy
+                delta_thetas = sp.Matrix(delta_thetas_numpy)
+                
+                # Update theta copy
+                theta_copy_iter += delta_thetas
+                
+                # Update current position using compiled function with new theta
+                pos_numpy = self.fk_func(float(theta_copy_iter[0]), float(theta_copy_iter[1]), 
+                                        float(theta_copy_iter[2]), float(theta_copy_iter[3]), 
+                                        float(theta_copy_iter[4]), float(theta_copy_iter[5]))
+                current_pos_iter = sp.Matrix(pos_numpy.flatten())
+                
+                # Update error from current waypoint position
+                error_iter = waypoint_pos - current_pos_iter
+                
+                # Increment iteration
+                iteration += 1
+            
+            # Store the converged theta configuration for this waypoint
+            if iteration < c.MAX_ITERATIONS:
+                self.waypoint_joint_angles.append(theta_copy_iter)
+            else:
+                print(f"Warning: IK did not converge for waypoint {waypoint_index + 1}/{len(self.waypoint_positions)}")
+                self.waypoint_joint_angles.append(theta_copy_iter)  # Use best effort
+            
+            # Use this waypoint's theta as starting point for next waypoint
+            theta_copy_prev = theta_copy_iter.copy()
+        
+        # Initialize waypoint traversal state
+        self.current_waypoint_index = 0
+        self.waypoint_theta_target = self.waypoint_joint_angles[0] if self.waypoint_joint_angles else self.thetas
+        print(f"Move absolute initialized: {self.waypoints_number} waypoints to traverse")
+    
+    def update_move_absolute(self):
+        """Update theta values smoothly along the waypoint path without blocking
+        Call this every control loop iteration to progress toward target
+        Returns True if movement complete, False if still in progress
+        """
+        if not hasattr(self, 'move_absolute_active') or not self.move_absolute_active:
+            return False
+        
+        if not hasattr(self, 'current_waypoint_index'):
+            return False
+        
+        # Check if we've completed all waypoints
+        if self.current_waypoint_index >= len(self.waypoint_joint_angles):
+            print("Move absolute complete")
+            self.move_absolute_active = False
+            return True
+        
+        # Get target theta for current waypoint
+        self.waypoint_theta_target = self.waypoint_joint_angles[self.current_waypoint_index]
+        
+        # Calculate difference between current and target theta
+        theta_error = self.waypoint_theta_target - self.thetas
+        theta_error_norm = theta_error.norm()
+        
+        # If close enough to waypoint, move to next waypoint
+        if theta_error_norm < 0.01:  # Small threshold in radians
+            self.current_waypoint_index += 1
+            
+            if self.current_waypoint_index >= len(self.waypoint_joint_angles):
+                print("Move absolute complete")
+                self.move_absolute_active = False
+                return True
+            
+            return False
+        
+        # Smoothly interpolate toward target waypoint theta
+        # Use small step to avoid blocking other control processes
+        interpolation_step = 0.1  # Interpolation ratio per loop iteration
+        theta_direction = theta_error.normalized()
+        step_distance = min(theta_error_norm * interpolation_step, theta_error_norm)
+        
+        # Update thetas toward current waypoint
+        self.thetas = self.thetas + (theta_direction * step_distance)
+        
+        return False
+    
+
+            
+
+
+
+
+
+
+
+
+# parameter = URArmParameter()
+# print(parameter.get_end_effector_position())
+# parameter.move_absolute(sp.Matrix([-50,-150, 800]))  # Example usage

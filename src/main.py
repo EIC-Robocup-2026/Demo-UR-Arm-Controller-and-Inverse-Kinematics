@@ -210,7 +210,7 @@ while True:
                 VISUALIZATION_ENABLED = False
     
 
-    time.sleep(0.05)
+    time.sleep(0.01)
 
 controller.stop()
 if VISUALIZATION_ENABLED:
